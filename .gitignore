@@ -1,0 +1,10 @@
+# Frama-C / WP session cache and generated goal files
+.frama-c/
+
+# Editor/IDE
+*.swp
+*~
+
+# Compiled/intermediate artifacts (if this is ever actually compiled)
+*.o
+*.out
