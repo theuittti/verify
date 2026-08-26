@@ -8,3 +8,12 @@
 # Compiled/intermediate artifacts (if this is ever actually compiled)
 *.o
 *.out
+
+# Coq compilation artifacts
+*.vo
+*.vok
+*.vos
+*.glob
+.*.aux
+.lia.cache
+.nia.cache

@@ -2,16 +2,12 @@
 /*@
   axiomatic MatrixMult
   {
-    inductive zeroed{L}(float* a, integer b, integer e){
-    case zeroed_empty{L}:
-        \forall float* a, integer b, e; b >= e ==> zeroed{L}(a, b, e);
-    case zeroed_range{L}:
-        \forall float* a, integer b, e; b < e ==>
-        zeroed{L}(a, b, e-1) && a[e-1] == 0 ==> zeroed{L}(a,b,e);
-  }
+
+    predicate zeroed{L}(float* a, integer b, integer e) =
+        \forall integer k; b <= k < e ==> a[k] == 0.0;
     inductive DotProduction(float* A, float* B, integer to,
                                    integer i, integer K, integer j, integer N, real res)
-	{
+    {
     case dotproduction_empty_range:
       \forall float* A, float* B, integer to, integer i, integer K, integer j, integer N;
       0 >= to ==> DotProduction(A, B, to, i, K, j, N, 0.0);
@@ -22,7 +18,7 @@
       DotProduction(A, B, to-1, i, K, j, N, res) ==>
       DotProduction(A, B, to, i, K, j, N, res + A[i*K + (to-1)] * B[(to-1)*N + j]);
 
-	}
+    }
     inductive RowResult{L2}(float* A, float* B, float* C, integer to,
                                 integer i, integer K, integer N)
     {
@@ -58,8 +54,52 @@
     \forall integer i, M, N;
     0 <= i < M && 0 < N ==> 0 <= i*N && i*N + N <= M*N;
 
+  lemma mul_mono_nonneg:
+    \forall integer x, y, z;
+    x <= y && 0 <= z ==> x*z <= y*z;
+
   lemma div8:
     \forall integer m; m % 16 == 0 ==> m % 8 == 0;
+
+  // Перенос фактов между двумя моментами времени (метками), когда
+  // задействованные диапазоны A/B/C не менялись между ними.
+  // Сами эти леммы прувер не докажет (внутри та же индукция, что и
+  // в assert-ах) -- доказаны один раз в Coq, см. coq_prove/lemma_*.v
+  lemma dp_frame{L1,L2}:
+    \forall float* A, float* B, integer to, i, K, j, N, real res;
+    (\forall integer idx; 0 <= idx < K*(i+1) ==> \at(A[idx],L1) == \at(A[idx],L2)) &&
+    (\forall integer idx; 0 <= idx < N*K ==> \at(B[idx],L1) == \at(B[idx],L2)) &&
+    0 <= i && 0 <= j < N && to <= K ==>
+    \at(DotProduction(A,B,to,i,K,j,N,res),L1) ==> \at(DotProduction(A,B,to,i,K,j,N,res),L2);
+
+  lemma row_frame{L1,L2}:
+    \forall float* A, float* B, float* C, integer row, K, N, to;
+    (\forall integer idx; 0 <= idx < K*(row+1) ==> \at(A[idx],L1) == \at(A[idx],L2)) &&
+    (\forall integer idx; 0 <= idx < N*K ==> \at(B[idx],L1) == \at(B[idx],L2)) &&
+    (\forall integer col; 0 <= col < N ==> \at(C[col+N*row],L1) == \at(C[col+N*row],L2)) &&
+    0 <= row && 0 < N && to <= N ==>
+    RowResult{L1}(A,B,C,to,row,K,N) ==> RowResult{L2}(A,B,C,to,row,K,N);
+
+  lemma mat_frame{L1,L2}:
+    \forall float* A, float* B, float* C, integer K, N, M, to;
+    (\forall integer idx; 0 <= idx < K*to ==> \at(A[idx],L1) == \at(A[idx],L2)) &&
+    (\forall integer idx; 0 <= idx < N*K ==> \at(B[idx],L1) == \at(B[idx],L2)) &&
+    (\forall integer idx; 0 <= idx < N*to ==> \at(C[idx],L1) == \at(C[idx],L2)) &&
+    0 < N && 0 < K && to <= M ==>
+    MatrixResult{L1}(A,B,C,to,K,N,M) ==> MatrixResult{L2}(A,B,C,to,K,N,M);
+
+  // Один блок из 8: "если 8 колонок были верны на шаге to-1, а C
+  // обновили по формуле fmadd (av*B+C_old), то все 8 верны на шаге to".
+  // Заменяет 8 отдельных assert-ов (step0..step7 / step8..step15) одним.
+  lemma fmadd8_step{L1,L2}:
+    \forall float* A, float* B, float* C, integer to, i, K, j, N, real av;
+    0 < to && to <= K && 0 <= i && 0 <= j && j+8 <= N ==>
+    (\forall integer idx; 0 <= idx < K*(i+1) ==> \at(A[idx],L1) == \at(A[idx],L2)) &&
+    (\forall integer idx; 0 <= idx < N*K ==> \at(B[idx],L1) == \at(B[idx],L2)) &&
+    av == \at(A[i*K+(to-1)], L1) &&
+    (\forall integer q; 0 <= q < 8 ==> \at(DotProduction(A,B,to-1,i,K,j+q,N,C[j+q]),L1)) &&
+    (\forall integer q; 0 <= q < 8 ==> \at(C[j+q],L2) == av*\at(B[(to-1)*N+(j+q)],L1) + \at(C[j+q],L1))
+    ==> \forall integer q; 0 <= q < 8 ==> \at(DotProduction(A,B,to,i,K,j+q,N,C[j+q]),L2);
 */
 
 
@@ -68,10 +108,8 @@
   requires \valid_read(A + (0 .. M*K-1));
   requires \valid_read(B + (0 .. K*N-1));
   requires \valid(C + (0 .. M*N-1));
-  requires COUNTER >= 1;
-  requires \forall integer i; i>0 ==> \valid(REG + (0 .. i));
-  requires \forall integer i; i>0 ==> \separated(REG + (0 .. i), A + (0 .. M*K-1), C + (0 .. M*N-1));
-  requires \forall integer i; i>0 ==> \separated(REG + (0 .. i), B + (0 .. K*N-1), C + (0 .. M*N-1));
+  requires \separated(A + (0 .. M*K-1), C + (0 .. M*N-1));
+  requires \separated(B + (0 .. K*N-1), C + (0 .. M*N-1));
   requires M > 0 && N > 0 && K > 0;
   requires N % 16 == 0;
   ensures MatrixResult{Post}(A, B, C, M, K, N, M);
@@ -81,35 +119,29 @@ void gemm_v2(int M, int N, int K, const float * A, const float * B, float * C)
     /*@
         loop invariant 0 <= i <= M;
         loop invariant MatrixResult{Here}(A, B, C, i, K, N, M);
-        loop invariant COUNTER >= 1;
-        loop invariant COUNTER >= \at(COUNTER, LoopEntry);
-        loop assigns C[0 .. M*N-1], i, COUNTER;
-        loop assigns REG[8*\at(COUNTER,LoopEntry) .. 8*COUNTER - 1];
+        loop assigns C[0 .. M*N-1], i;
         loop variant M-i;
     */
     for (int i = 0; i < M; ++i)
     {
         float * c = C + i * N;
         /*@ assert crow_bound: N + i*N <= M*N; */
+        /*@ assert arow_bound_aux: i+1 <= M; */
+        /*@ assert arow_bound_mul: (i+1)*K <= M*K; */
         /*@ assert arow_bound: K + i*K <= M*K; */
         /*@
             loop invariant 0 <= j <= N;
             loop invariant j % 8 == 0;
             loop invariant 0 <= i < M;
             loop invariant zeroed{Here}(C, i*N, i*N + j);
-            loop invariant COUNTER >= 1;
-            loop invariant COUNTER >= \at(COUNTER, LoopEntry);
-            loop invariant \separated(REG + (8*COUNTER .. 8*COUNTER+7), C + (0 .. M*N-1));
 
-            loop assigns j, C[i*N .. i*N + N - 1], COUNTER;
-            loop assigns REG[8*\at(COUNTER,LoopEntry) .. 8*COUNTER - 1];
+            loop assigns j, C[i*N .. i*N + N - 1];
             loop variant N-j;
         */
         for (int j = 0; j < N; j += 8)
         {
             /*@ assert zalign: j <= N - 8; */
             __mm256 z = _mm256_setzero_ps();
-            /*@ assert z_sep_C: \separated(z + (0 .. 7), (c + j + 0) + (0 .. 7)); */
             _mm256_storeu_ps(c + j + 0, z);
             /*@ assert zeroed{Here}(C, i*N, i*N + j + 8);*/
         }
@@ -119,12 +151,9 @@ void gemm_v2(int M, int N, int K, const float * A, const float * B, float * C)
         /*@
             loop invariant 0 <= k <= K;
             loop invariant 0 <= i < M;
-			loop invariant \forall integer l; 0<=l<N ==> DotProduction(A, B, k, i, K, l, N, c[l]);
-            loop invariant COUNTER >= 1;
-            loop invariant COUNTER >= \at(COUNTER, LoopEntry);
+            loop invariant \forall integer l; 0<=l<N ==> DotProduction(A, B, k, i, K, l, N, c[l]);
 
-            loop assigns k, C[i*N .. i*N + N - 1], COUNTER;
-            loop assigns REG[8*\at(COUNTER,LoopEntry) .. 8*COUNTER - 1];
+            loop assigns k, C[i*N .. i*N + N - 1];
             loop variant K-k;
         */
         for (int k = 0; k < K; ++k)
@@ -139,42 +168,27 @@ void gemm_v2(int M, int N, int K, const float * A, const float * B, float * C)
                 loop invariant j % 16 == 0;
                 loop invariant \forall integer q; 0 <= q < j ==> DotProduction(A, B, k+1, i, K, q, N, c[q]);
                 loop invariant \forall integer q; j <= q < N ==> DotProduction(A, B, k, i, K, q, N, c[q]);
-                loop invariant COUNTER >= 1;
-                loop invariant COUNTER >= \at(COUNTER, LoopEntry);
-                loop invariant \separated(REG + (8*COUNTER .. 8*COUNTER+7), B + (0 .. K*N-1));
-                loop invariant \separated(REG + (8*COUNTER .. 8*COUNTER+7), C + (0 .. M*N-1));
 
-                loop assigns C[i*N .. i*N + N - 1], j, COUNTER;
-                loop assigns REG[8*\at(COUNTER,LoopEntry) .. 8*COUNTER - 1];
+                loop assigns C[i*N .. i*N + N - 1], j;
                 loop variant N-j;
             */
             for (int j = 0; j < N; j += 16)
             {
                /*@ assert jalign: j <= N - 16; */
-               /*@ assert step0: DotProduction(A, B, k+1, i, K, j, N, c[j]+a[0]*b[j]); */
-               /*@ assert step1: DotProduction(A, B, k+1, i, K, j+1, N, c[j+1]+a[1]*b[j+1]); */
-               /*@ assert step2: DotProduction(A, B, k+1, i, K, j+2, N, c[j+2]+a[2]*b[j+2]); */
-               /*@ assert step3: DotProduction(A, B, k+1, i, K, j+3, N, c[j+3]+a[3]*b[j+3]); */
-               /*@ assert step4: DotProduction(A, B, k+1, i, K, j+4, N, c[j+4]+a[4]*b[j+4]); */
-               /*@ assert step5: DotProduction(A, B, k+1, i, K, j+5, N, c[j+5]+a[5]*b[j+5]); */
-               /*@ assert step6: DotProduction(A, B, k+1, i, K, j+6, N, c[j+6]+a[6]*b[j+6]); */
-               /*@ assert step7: DotProduction(A, B, k+1, i, K, j+7, N, c[j+7]+a[7]*b[j+7]); */
+               /*@ assert valid_b_bound: k*N + j + 16 <= K*N; */
+               /*@ assert b_eq: \forall integer q; j <= q < j+16 ==> b[q] == B[k*N + q]; */
+               /*@ assert valid_b: \valid_read(b + j + (0 .. 15)); */
+               /*@ assert valid_c: \valid(c + j + (0 .. 15)); */
+               /*@ assert a_eq: a.e[0] == A[i*K + k]; */
+                J16Top: ;
                 __mm256 r0 = _mm256_fmadd_ps(a,
                     _mm256_loadu_ps(b + j + 0), _mm256_loadu_ps(c + j + 0));
-                /*@ assert r0_sep_C: \separated(r0 + (0 .. 7), (c + j + 0) + (0 .. 7)); */
                 _mm256_storeu_ps(c + j + 0, r0);
-               /*@ assert step8: DotProduction(A, B, k+1, i, K, j+8, N, c[j+8]+a[0]*b[j+8]); */
-               /*@ assert step9: DotProduction(A, B, k+1, i, K, j+9, N, c[j+9]+a[1]*b[j+9]); */
-               /*@ assert step10: DotProduction(A, B, k+1, i, K, j+10, N, c[j+10]+a[2]*b[j+10]); */
-               /*@ assert step11: DotProduction(A, B, k+1, i, K, j+11, N, c[j+11]+a[3]*b[j+11]); */
-               /*@ assert step12: DotProduction(A, B, k+1, i, K, j+12, N, c[j+12]+a[4]*b[j+12]); */
-               /*@ assert step13: DotProduction(A, B, k+1, i, K, j+13, N, c[j+13]+a[5]*b[j+13]); */
-               /*@ assert step14: DotProduction(A, B, k+1, i, K, j+14, N, c[j+14]+a[6]*b[j+14]); */
-               /*@ assert step15: DotProduction(A, B, k+1, i, K, j+15, N, c[j+15]+a[7]*b[j+15]); */
+               /*@ assert block0: \forall integer q; 0<=q<8 ==> DotProduction(A, B, k+1, i, K, j+q, N, c[j+q]); */
                 __mm256 r1 = _mm256_fmadd_ps(a,
                     _mm256_loadu_ps(b + j + 8), _mm256_loadu_ps(c + j + 8));
-                /*@ assert r1_sep_C: \separated(r1 + (0 .. 7), (c + j + 8) + (0 .. 7)); */
                 _mm256_storeu_ps(c + j + 8, r1);
+               /*@ assert block1: \forall integer q; 0<=q<8 ==> DotProduction(A, B, k+1, i, K, j+8+q, N, c[j+8+q]); */
             }
             /*@ assert dot_done:  \forall integer l; 0<=l<N ==> DotProduction(A, B, k+1, i, K, l, N, c[l]);*/
         }
