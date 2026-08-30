@@ -1,0 +1,33 @@
+Require Import Psatz.
+Proof.
+intros.
+assert (H_zero: a8 (shift a2 (i4 + x3)%Z) = 0%R).
+1:
+{
+    assert (H_extract: forall e, P_zeroed a8 a2 x3 e -> 
+                       forall k, (x3 <= k)%Z -> (k < e)%Z -> a8 (shift a2 k) = 0%R).
+  {
+      intros e Hzero_ind.
+      induction Hzero_ind.
+      -  intros k Hk_min Hk_max. lia.
+      - intros k Hk_min Hk_max.
+      destruct (why_decidable_eq (shift a0 k) (shift a0 x0)) as[Heq | Hneq].
+      rewrite Heq.
+      exact H24.
+      apply IHHzero_ind; try assumption.
+      assert (k <> x0) by (intro Heq_k; apply Hneq; rewrite Heq_k; reflexivity).
+      lia.
+  }
+  apply H_extract  with (e := (i2 + x3)%Z).
+  -exact H23.
+  -nia.
+  -nia.
+}
+1:
+{
+rewrite H_zero.
+apply Q_dotproduction_empty_range.
+nia.
+}
+Qed.
+

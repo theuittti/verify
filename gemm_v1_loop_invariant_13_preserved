@@ -1,0 +1,90 @@
+Require Import Psatz.
+Proof.
+intros.
+  (* 1. Доказываем, что чтение из матрицы A не пострадало *)
+  assert (EqA: forall idx, (0 <= idx)%Z -> (idx < i * i1)%Z -> a13 (shift a idx) = a10 (shift a idx)).
+  {
+    intros idx Hidx_min Hidx_max. unfold a13, a11, Map.set.
+    destruct (why_decidable_eq (shift a2 (i7 + x3)%Z) (shift a idx)) as [Heq | Hneq].
+    - unfold shift, base, offset, a4, a5, x1, x2 in *. 
+      injection Heq as HeqBase HeqOff.
+      destruct H25 as [Hb1|[Hb2|[Hb3|[Hb4|Hb5]]]].
+      * nia.
+      * nia.
+      * unfold base, shift in Hb3. unfold base in Hb3. congruence.
+      * assert (Step: (i7 + i2 * i3 < i1 * i2)%Z) by nia.
+        destruct a2 as [b_a2 o_a2]. destruct a as [b_a o_a].
+        unfold shift, offset, base in *. simpl in *. nia. 
+      * destruct a2 as [b_a2 o_a2]. destruct a as [b_a o_a].
+        unfold shift, offset, base in *. simpl in *. nia.
+    - reflexivity.
+  }
+
+  (* 2. Доказываем, что чтение из матрицы B не пострадало *)
+  assert (EqB: forall idx, (0 <= idx)%Z -> (idx < i * i2)%Z -> a13 (shift a1 idx) = a10 (shift a1 idx)).
+  {
+    intros idx Hidx_min Hidx_max. 
+    unfold a13, a11, Map.set.
+    destruct (why_decidable_eq (shift a2 (i7 + x3)%Z) (shift a1 idx)) as [Heq | Hneq].
+    - unfold shift, base, offset, a3, a5, x, x2, x3 in *. 
+      injection Heq as HeqBase HeqOff.
+      destruct H24 as [Hb1|[Hb2|[Hb3|[Hb4|Hb5]]]].
+      * nia.
+      * nia.
+      * assert (Step: (i7 + i2 * i3 < i1 * i2)%Z) by nia.
+        destruct a2 as [b_a2 o_a2]. destruct a1 as [b_a o_a].
+        unfold shift, offset, base, x3 in *. simpl in *. nia. 
+      * assert (Step: (i7 + i2 * i3 < i1 * i2)%Z) by nia.
+        destruct a2 as [b_a2 o_a2]. destruct a1 as [b_a1 o_a1].
+        simpl in *. nia.
+      * destruct a2 as [b_a2 o_a2]. destruct a1 as [b_a1 o_a1].
+        simpl in *. nia.
+    - reflexivity.
+  }
+
+  (* 3. Лемма кадра для скалярного произведения (переводит a10 в a13) *)
+  assert (Hframe_dot: forall k_dot col res_, 
+      (k_dot <= i)%Z -> (0 <= col)%Z -> (col < i2)%Z -> 
+      P_DotProduction a10 a a1 k_dot i3 i col i2 res_ -> 
+      P_DotProduction a13 a a1 k_dot i3 i col i2 res_).
+  {
+    intros k_dot col res_ Hk_max Hcol_min Hcol_max Hdot_k.
+    induction Hdot_k as [to_empty Hempty | to_pos_k Hpos Hdot_prev IH].
+    - apply Q_dotproduction_empty_range. lia.
+    - rewrite <- EqA; [ | lia | nia ].
+      rewrite <- EqB.
+      apply Q_dotproduction_positive_range.
+      + lia.
+      + apply IHHdot_k; try assumption. nia.
+      + nia. + nia.
+  }
+
+  (* 4. Финальный разбор: i4 (наша цель) и i7 (текущая колонка) *)
+  assert (EqC: a13 (shift a2 (i4 + x3)%Z) = a10 (shift a2 (i4 + x3)%Z)).
+  {
+    unfold a13, a11, Map.set.
+    destruct (why_decidable_eq (shift a2 (i7 + x3)%Z) (shift a2 (i4 + x3)%Z)) as [Heq | Hneq].
+    - unfold shift, offset in Heq. injection Heq. 
+      (* nia видит гипотезу H3 (i7 < i4) и мгновенно находит противоречие *)
+      nia. 
+    - reflexivity.
+  }
+  
+  (* 2. Заменяем a13 на a10 в нашей цели *)
+  rewrite EqC.
+  
+  (* 3. Применяем Лемму Кадра (которая переведет цель из a13 в a10) *)
+  apply Hframe_dot.
+  - lia. (* Доказываем i6 <= i *)
+  - lia. (* Доказываем 0 <= i4 *)
+  - lia. (* Доказываем i4 < i2 *)
+  
+  (* 4. Теперь цель выглядит как: P_DotProduction a10 a a1 i6 i3 i i4 i2 ... *)
+  (* Применяем готовую гипотезу H34!
+     Она гласит: для всех колонок от i7 до i2 всё уже доказано. 
+     А наша колонка i4 как раз находится в этом диапазоне! *)
+  -apply H34.
+  + lia. (* Доказываем i7 <= i4 (из гипотезы H3) *)
+  + lia. (* Доказываем i4 < i2 (из гипотезы H9) *)
+Qed.
+

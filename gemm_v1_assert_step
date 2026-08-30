@@ -1,0 +1,62 @@
+Require Import Psatz.
+Proof.
+intros.
+  (* 1. Доказываем, что чтение из матрицы A одинаково для памяти a9 и a10 *)
+   assert (EqA: a9 (shift a (i5 + i * i3)%Z) = a10 (shift a (i5 + i * i3)%Z)).
+  {
+    (* Сначала разворачиваем ТОЛЬКО a10, чтобы увидеть первый слой memcpy *)
+    unfold a10.
+    
+    (* Снимаем верхний слой (переход от a10 к a9) *)
+    destruct (memcpy'def a9 (shift a2 (i2 * i3)%Z) t2 (shift a2 (i2 * i3)%Z) i2 (shift a (i5 + i * i3)%Z)) as [L_H2 _].
+    
+    (* Доказываем левую (безопасную) часть аксиомы *)
+    assert (H_sepA: separated (shift a (i5 + i * i3)%Z) 1 (shift a2 (i2 * i3)%Z) i2).
+    {
+      destruct a as [b_a o_a]. destruct a2 as [b_a2 o_a2].
+      unfold separated, a4, a5, x1, x2, shift, base, offset in *. simpl in *.
+      destruct H22 as [Hb1 |[Hb2 | [Hb3 | [Hb4 | Hb5]]]]; try nia.
+    }
+    
+    (* Применяем L_H2 (превращаем memcpy a9 ... в просто a9) *)
+    assert (Step1: memcpy a9 a7 t2 a7 i2 (shift a (i5 + i * i3)%Z) = a9 (shift a (i5 + i * i3)%Z)).
+    { apply L_H2. exact H_sepA. }
+    rewrite Step1.
+    
+    (* Теперь разворачиваем a9, чтобы увидеть второй слой memcpy *)
+    unfold a9.
+    
+    (* Снимаем второй слой (переход от a9 к a8) *)
+    destruct (memcpy'def a8 (shift a2 (i2 * i3)%Z) t3 (shift a2 (i2 * i3)%Z) i2 (shift a (i5 + i * i3)%Z)) as [L_H1 _].
+
+    reflexivity.
+  }
+  (* 2. Заменяем a9 на a10 в нашей цели *)
+  rewrite EqA.
+
+  (* 3. Подгоняем математику под требования конструктора Q_dotproduction_positive_range *)
+  (* Меняем порядок сложения и умножения: a * b + c  =>  c + a * b *)
+  replace (a10 (shift a (i5 + i * i3)%Z) * a10 (shift a1 (i6 + i2 * i5)%Z) +
+           a10 (shift a2 (i6 + x3)%Z))%R
+     with (a10 (shift a2 (i6 + x3)%Z) +
+           a10 (shift a (i5 + i * i3)%Z) * a10 (shift a1 (i6 + i2 * i5)%Z))%R by ring.
+           
+  (* Подгоняем индексы i5 под x4 (так как x4 = 1 + i5) *)
+  replace (i5 + i * i3)%Z with (- (1) + x4 + i * i3)%Z by lia.
+  replace (i6 + i2 * i5)%Z with (i6 + i2 * (- (1) + x4))%Z by lia.
+  
+  (* Подгоняем умножение K * i *)
+  replace (i * i3)%Z with (i3 * i)%Z by lia.
+  
+  (* 4. Применяем конструктор шага DotProduction! *)
+  apply Q_dotproduction_positive_range.
+  - lia. (* Доказываем 0 < x4 *)
+  - (* Доказываем базу индуктивного шага (для предыдущего элемента) *)
+    replace (- (1) + x4)%Z with i5 by lia.
+    
+    (* Применяем гипотезу H30, которая содержит готовую базу! *)
+    apply H30.
+    + lia. (* Доказываем i6 <= i6 *)
+    + lia. (* Доказываем i6 < i2 (из H3) *)
+Qed.
+

@@ -1,0 +1,149 @@
+Require Import Psatz.
+Proof.
+intros a a1 a2 i i1 t2 t3 t4 t5 t6 i2 i3 i4 i5 a3 x a4 x1 a5 x2 a6 x3 a7 a8
+a9 h1 h2 h3 h4 h5 h6 h7 h8 h9 h10 h11 h12 h13 h14 h15 h16 h17 h18 h19 h20 h21
+h22 h23 h24 h25 h26 h27 h28 h29 h30 h31 h32 h33 h34 h35.
+
+remember a9 as A9 eqn:HA9.
+
+assert (Hincl: included a7 i2 a5 x2).
+{
+  unfold included, a7, a5.
+  intro Hpos.
+  repeat split; try reflexivity; simpl; nia.
+}
+
+assert (HsepB: separated a7 i2 a3 x).
+{
+  apply separated_trans with (q := a5) (lq := x2).
+  - exact Hincl.
+  - apply separated_sym. exact h26.
+}
+assert (HsepA: separated a7 i2 a4 x1).
+{
+  apply separated_trans with (q := a5) (lq := x2).
+  - exact Hincl.
+  - apply separated_sym. exact h27.
+}
+
+assert (HsepC: separated a7 i2 a5 x3).
+{
+  unfold separated, a7, a5.
+  right. right. right. left.
+  simpl. lia.
+}
+
+assert (HeqB: eqmem a6 A9 a3 x).
+{
+  intros q Hq.
+  transitivity (a8 q).
+  - exact (eqmem_memcpy a6 t5 a7 a3 a7 i2 x HsepB q Hq).
+  - rewrite HA9. exact (eqmem_memcpy a8 t4 a7 a3 a7 i2 x HsepB q Hq).
+}
+
+assert (HeqA: eqmem a6 A9 a4 x1).
+{
+  intros q Hq.
+  transitivity (a8 q).
+  - exact (eqmem_memcpy a6 t5 a7 a4 a7 i2 x1 HsepA q Hq).
+  - rewrite HA9. exact (eqmem_memcpy a8 t4 a7 a4 a7 i2 x1 HsepA q Hq).
+}
+
+assert (HeqC: eqmem a6 A9 a5 x3).
+{
+  intros q Hq.
+  transitivity (a8 q).
+  - exact (eqmem_memcpy a6 t5 a7 a5 a7 i2 x3 HsepC q Hq).
+  - rewrite HA9. exact (eqmem_memcpy a8 t4 a7 a5 a7 i2 x3 HsepC q Hq).
+}
+
+assert (HeqA_pt: forall k:Z, (0 <= k)%Z -> (k < x1)%Z -> a6 (shift a4 k) = A9 (shift a4 k)).
+{
+  intros k Hk1 Hk2.
+  apply HeqA. unfold included, a4. intro Hpos. simpl. repeat split; try reflexivity; lia.
+}
+assert (HeqB_pt: forall k:Z, (0 <= k)%Z -> (k < x)%Z -> a6 (shift a3 k) = A9 (shift a3 k)).
+{
+  intros k Hk1 Hk2.
+  apply HeqB. unfold included, a3. intro Hpos. simpl. repeat split; try reflexivity; lia.
+}
+
+assert (Ea4: forall k:Z, shift a4 k = shift a k).
+{ intro k. unfold a4, shift. simpl. f_equal. lia. }
+assert (Ea3: forall k:Z, shift a3 k = shift a1 k).
+{ intro k. unfold a3, shift. simpl. f_equal. lia. }
+
+assert (HeqA_pt': forall k:Z, (0 <= k)%Z -> (k < x1)%Z -> a6 (shift a k) = A9 (shift a k)).
+{ intros k Hk1 Hk2. rewrite <- (Ea4 k). apply HeqA_pt; assumption. }
+assert (HeqB_pt': forall k:Z, (0 <= k)%Z -> (k < x)%Z -> a6 (shift a1 k) = A9 (shift a1 k)).
+{ intros k Hk1 Hk2. rewrite <- (Ea3 k). apply HeqB_pt; assumption. }
+
+assert (HDP: forall (to0 i0 K0 j0:Z) (res:R),
+  (0 <= i0)%Z -> (i0 < i1)%Z -> (0 <= K0)%Z -> (K0 <= i)%Z ->
+  (0 <= j0)%Z -> (j0 < i2)%Z -> (0 <= to0)%Z -> (to0 <= K0)%Z ->
+  P_DotProduction a6 a a1 to0 i0 K0 j0 i2 res ->
+  P_DotProduction A9 a a1 to0 i0 K0 j0 i2 res).
+{
+  intros to0 i0 K0 j0 res Hi0a Hi0b HK0a HK0b Hj0a Hj0b Hto0a Hto0b Hdp.
+  induction Hdp.
+  - apply Q_P_DotProduction_dotproduction_empty_range; assumption.
+  - rewrite HeqA_pt' by nia.
+    rewrite HeqB_pt' by nia.
+    apply Q_P_DotProduction_dotproduction_positive_range.
+    + assumption.
+    + apply IHHdp; (assumption || nia).
+}
+
+assert (Ea5: forall k:Z, shift a5 k = shift a2 k).
+{ intro k. unfold a5, shift. simpl. f_equal. lia. }
+
+assert (HeqC_pt: forall k:Z, (0 <= k)%Z -> (k < x3)%Z -> a6 (shift a5 k) = A9 (shift a5 k)).
+{
+  intros k Hk1 Hk2.
+  apply HeqC. unfold included, a5. intro Hpos. simpl. repeat split; try reflexivity; lia.
+}
+assert (HeqC_pt': forall k:Z, (0 <= k)%Z -> (k < x3)%Z -> a6 (shift a2 k) = A9 (shift a2 k)).
+{ intros k Hk1 Hk2. rewrite <- (Ea5 k). apply HeqC_pt; assumption. }
+
+assert (HRR: forall (to0 i0:Z),
+  (0 <= i0)%Z -> (i0 < i3)%Z -> (0 <= to0)%Z -> (to0 <= i2)%Z ->
+  P_RowResult a6 a a1 a2 to0 i0 i i2 ->
+  P_RowResult A9 a a1 a2 to0 i0 i i2).
+{
+  intros to0 i0 Hi0a Hi0b Hto0a Hto0b Hrr.
+  induction Hrr.
+  - apply Q_P_RowResult_rowresult_empty; assumption.
+  - apply Q_P_RowResult_rowresult_step.
+    + assumption.
+    + apply IHHrr; (assumption || nia).
+    + rewrite <- HeqC_pt' by nia.
+      apply HDP; (assumption || nia).
+}
+
+assert (HMR_gen: forall n:nat, forall m:Z, (Z.of_nat n = m)%Z -> (0 <= m)%Z -> (m <= i3)%Z ->
+  P_MatrixResult a6 a a1 a2 m i i2 i1 ->
+  P_MatrixResult A9 a a1 a2 m i i2 i1).
+{
+  induction n as [| n' IHn]; intros m Hnm Hma Hmb Hmr.
+  - apply Q_P_MatrixResult_matrixresult_empty; lia.
+  - inversion Hmr as [Mf0 A0 B0 C0 to0 K0 N0 M0 Hemp EQ0 | Mf0 A0 B0 C0 to0 K0 N0 M0 xdef Hpos Hrow Hmat EQ0].
+    + lia.
+    + apply Q_P_MatrixResult_matrixresult_step.
+      * lia.
+      * apply HRR.
+        { lia. }
+        { lia. }
+        { lia. }
+        { apply Z.le_refl. }
+        { assumption. }
+      * apply (IHn xdef); [lia | lia | lia | assumption].
+}
+
+assert (HMR: P_MatrixResult A9 a a1 a2 i3 i i2 i1).
+{ apply (HMR_gen (Z.to_nat i3) i3); [lia | lia | lia | exact h30]. }
+
+apply Q_P_MatrixResult_matrixresult_step.
+- nia.
+- replace (- (1) + (1 + i3))%Z with i3 by lia. exact h33.
+- replace (- (1) + (1 + i3))%Z with i3 by lia. exact HMR.
+Qed.

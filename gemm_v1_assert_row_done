@@ -1,0 +1,36 @@
+Require Import Psatz.
+Require Import ZArith.
+Proof.
+intros.
+ assert (H_k_done: i5 = i) by lia.
+  rewrite H_k_done in H26.
+ assert (H_row: forall n: nat, (Z.of_nat n <= i2)%Z -> 
+                 P_RowResult a9 a a1 a2 (Z.of_nat n) i3 i i2).
+  {
+    induction n; intros H_bound.
+    - 
+      apply Q_rowresult_empty. lia.
+      
+    - 
+      apply Q_rowresult_step.
+      + lia.
+      + 
+        replace (- (1) + Z.of_nat (S n))%Z with (Z.of_nat n) by lia.
+        apply IHn. lia.
+      + 
+        replace (- (1) + Z.of_nat (S n))%Z with (Z.of_nat n) by lia.
+        apply H26. 
+        * lia. 
+        * lia.
+  }
+
+  
+  replace i2 with (Z.of_nat (Z.to_nat i2)) by lia.
+assert (Hi2_nonneg : (0 <= i2)%Z) by lia.
+assert (Heq : Z.of_nat (Z.to_nat i2) = i2) by (apply Z2Nat.id; auto).
+rewrite Heq.
+rewrite <- Heq at 1.
+apply (H_row (Z.to_nat i2)).
+nia.
+Qed.
+

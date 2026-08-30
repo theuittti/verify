@@ -1,0 +1,48 @@
+Require Import Psatz.
+Proof.
+intros.
+apply Q_zeroed_range.
+-replace (-(1) + (1 + i4 + x3))%Z with x4 by lia.
+unfold Map.set.
+destruct(why_decidable_eq).
+reflexivity.
+congruence.
+-nia.
+-replace (-(1) + (1 + i4 + x3))%Z with x4 by lia.
+induction H20.
++apply Q_zeroed_empty.
+nia.
++apply Q_zeroed_range.
+--unfold Map.set.
+destruct(why_decidable_eq).
+reflexivity.
+replace (-(1) + e)%Z with x0 by lia.
+exact H20.
+--nia.
+--
+  assert (Hframe_zero: forall k, (k <= x0)%Z ->
+      P_zeroed Mf32 a0 b k ->
+      P_zeroed (map.Map.set Mf32 (shift a0 e) 0%R) a0 b k).
+  {
+    intros k Hk Hzero.
+    induction Hzero.
+    - (* Базовый случай *)
+      apply Q_zeroed_empty. lia.
+    - (* Шаг индукции *)
+      apply Q_zeroed_range.
+      + (* Доказываем, что запись в 'e' не испортила ячейку 'to0 - 1' *)
+        unfold map.Map.set.
+        destruct (why_decidable_eq (shift a0 e) (shift a0 (- (1) + e0)%Z)) as[Heq | Hneq].
+        * reflexivity.
+        * replace (-(1) + e0)%Z with x3 by lia.
+          exact H23.
+        +nia.
++ replace (-(1) + e0)%Z with x3 by lia.
+apply IHHzero; try assumption; try lia.
+  }
+  
+  (* Применяем лемму к нашей главной цели! *)
+  apply Hframe_zero.
+  ++nia.
+  ++ exact H22.
+Qed.
